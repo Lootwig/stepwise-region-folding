@@ -68,20 +68,6 @@ class IncrementFoldLevel : StepFoldingLevel(1)
 
 class DecreaseFoldLevel : StepFoldingLevel(-1)
 
-internal class Node<T>(depth: Int) : ArrayList<Node<T>>() {
-    private var depth = depth
-        set(value) {
-            this.forEach { it.depth += value - depth }
-            depth = value
-        }
-
-    override fun add(e: Node<T>): Boolean {
-        e.depth += this.depth
-        return super.add(e)
-    }
-
-}
-
 internal open class Region(private val region: FoldRegion? = null) : ArrayList<Region>() {
     open fun isExpanded(): Boolean = region?.isExpanded ?: throw UninitializedPropertyAccessException()
     open fun cnt(other: Region): Boolean = region!!.textRange.contains(other.region!!.textRange)

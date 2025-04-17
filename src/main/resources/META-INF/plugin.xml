@@ -4,7 +4,6 @@
     <vendor>Dal Segno Solutions</vendor>
 
     <depends>com.intellij.modules.platform</depends>
-
     <resource-bundle>messages.Bundle</resource-bundle>
 
     <actions resource-bundle="messages.Bundle">

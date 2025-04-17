@@ -3,43 +3,43 @@ import org.jetbrains.changelog.markdownToHTML
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 
 plugins {
-    id("java") // Java support
-    alias(libs.plugins.kotlin) // Kotlin support
-    alias(libs.plugins.intelliJPlatform) // IntelliJ Platform Gradle Plugin
-    alias(libs.plugins.changelog) // Gradle Changelog Plugin
-    alias(libs.plugins.qodana) // Gradle Qodana Plugin
-    alias(libs.plugins.kover) // Gradle Kover Plugin
+    id("java")
+    alias(libs.plugins.kotlin)
+    alias(libs.plugins.intelliJPlatform)
+    alias(libs.plugins.changelog)
+    alias(libs.plugins.qodana)
+    alias(libs.plugins.kover)
 }
 
 group = providers.gradleProperty("pluginGroup").get()
 version = providers.gradleProperty("pluginVersion").get()
 
-// Set the JVM language level used to build the project.
-kotlin {
-    jvmToolchain(21)
-}
-
 repositories {
     mavenCentral()
-    // maven("https://www.jetbrains.com/intellij-repository/snapshots")
     intellijPlatform {
         defaultRepositories()
     }
 }
 
-// Dependencies are managed with Gradle version catalog - read more: https://docs.gradle.org/current/userguide/platforms.html#sub:version-catalog
+kotlin {
+    jvmToolchain(21)
+}
+
 dependencies {
-    //compileOnly("com.jetbrains.intellij.idea:ideaIU:251.23774-EAP-CANDIDATE-SNAPSHOT")
     testImplementation(libs.junit)
     intellijPlatform {
-        local("C:\\Users\\postd\\AppData\\Local\\Programs\\IntelliJ IDEA Ultimate 4")
-        //intellijIdeaUltimate("2025.1", useInstaller = false)
-        //create(providers.gradleProperty("platformType"), providers.gradleProperty("platformVersion"))
-
-        bundledPlugins(providers.gradleProperty("platformBundledPlugins").map { it.split(',') })
-        plugins(providers.gradleProperty("platformPlugins").map { it.split(',') })
+        if (!project.ext.has("localIde")
+            || (project.ext.get("localIde") as? File)
+                ?.apply { local(this) } == null
+        ) {
+            create(
+                providers.gradleProperty("platformType"),
+                providers.gradleProperty("platformVersion")
+            )
+        }
         testFramework(TestFrameworkType.Platform)
     }
+    testImplementation(kotlin("test"))
 }
 
 intellijPlatform {
@@ -62,9 +62,7 @@ intellijPlatform {
         changeNotes = providers.gradleProperty("pluginVersion").map { pluginVersion ->
             with(changelog) {
                 renderItem(
-                    (getOrNull(pluginVersion) ?: getUnreleased())
-                        .withHeader(false)
-                        .withEmptySections(false),
+                    (getOrNull(pluginVersion) ?: getUnreleased()).withHeader(false).withEmptySections(false),
                     Changelog.OutputType.HTML,
                 )
             }
@@ -77,76 +75,36 @@ intellijPlatform {
     }
 
     signing {
-        val keyDir = file(providers.environmentVariable("OneDrive")).resolve("keys/ij-plugins/")
-        certificateChainFile = keyDir.resolve("chain.crt")
-        privateKeyFile = keyDir.resolve("private_encrypted.pem")
-        password = providers.environmentVariable("PRIVATE_KEY_PASSWORD")
+        password = providers.environmentVariable("PRIVATE_KEY_PASSWORD").orNull
+        providers.environmentVariable("KEY_DIR").orNull?.apply {
+            val keyDir = file(this)
+            certificateChainFile = keyDir.resolve("chain.crt")
+            privateKeyFile = keyDir.resolve("private_encrypted.pem")
+        }
     }
 
     publishing {
         token = providers.environmentVariable("PUBLISH_TOKEN")
-        // The pluginVersion is based on the SemVer (https://semver.org) and supports pre-release labels, like 2.1.7-alpha.3
-        // Specify pre-release label to publish the plugin in a custom Release Channel automatically. Read more:
-        // https://plugins.jetbrains.com/docs/intellij/deployment.html#specifying-a-release-channel
-        channels = providers.gradleProperty("pluginVersion").map { listOf(it.substringAfter('-', "").substringBefore('.').ifEmpty { "default" }) }
+        channels = providers.gradleProperty("pluginVersion")
+            .map { listOf(it.substringAfter('-', "").substringBefore('.').ifEmpty { "default" }) }
     }
 
-    pluginVerification {
-        ides {
-            recommended()
-        }
-    }
+    pluginVerification { ides { recommended() } }
 }
 
-// Configure Gradle Changelog Plugin - read more: https://github.com/JetBrains/gradle-changelog-plugin
 changelog {
     groups.empty()
     repositoryUrl = providers.gradleProperty("pluginRepositoryUrl")
 }
 
-// Configure Gradle Kover Plugin - read more: https://github.com/Kotlin/kotlinx-kover#configuration
-kover {
-    reports {
-        total {
-            xml {
-                onCheck = true
-            }
-        }
-    }
-}
+kover { reports { total { xml { onCheck = true } } } }
 
 tasks {
     wrapper {
         gradleVersion = providers.gradleProperty("gradleVersion").get()
     }
 
-    publishPlugin {
-        dependsOn(patchChangelog)
-    }
-
-    prepareSandbox {
-        // sandboxDirectory.asFile.get().deleteRecursively()
-        //defaultDestinationDirectory = sandboxDirectory
-        //sandboxPluginsDirectory = sandboxConfigDirectory.dir("plugins")
-        includeEmptyDirs = false
-        val sourceIde = file("C:\\Users\\postd\\IDE Settings\\testide")
-        from(sourceIde.resolve("config")) {
-            eachFile {
-                val segments = relativeSourcePath.segments
-                if (segments[0] == "plugins") {
-                    relativePath = RelativePath(true, * segments.drop(1).toTypedArray())
-                } else path =
-                    sandboxConfigDirectory.asFile.get().relativeTo(destinationDir).resolve(relativeSourcePath.pathString).path
-            }
-        }
-        from(sourceIde.resolve("system")) {
-            into(sandboxSystemDirectory.asFile.get().relativeTo(destinationDir))
-        }
-    }
-
-    runIde {
-        argumentProviders += CommandLineArgumentProvider { listOf("D:\\Projects\\personal\\automation") }
-    }
+    publishPlugin { dependsOn(patchChangelog) }
 }
 
 intellijPlatformTesting {
@@ -163,9 +121,7 @@ intellijPlatformTesting {
                 }
             }
 
-            plugins {
-                robotServerPlugin()
-            }
+            plugins { robotServerPlugin() }
         }
     }
 }
