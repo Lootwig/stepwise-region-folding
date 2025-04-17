@@ -1,0 +1,12 @@
+<root>
+    <a2>Foo</a2>
+
+    <b>
+        <c>
+            <def>hello</def>
+        </c>
+        <d>
+            <anElement/>
+        </d>
+    </b>
+</root>

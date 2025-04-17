@@ -1,0 +1,25 @@
+<idea-plugin>
+    <id>com.dalsegnosolutions.ij.swrf</id>
+    <name>Step-Wise Region Folding</name>
+    <vendor>Dal Segno Solutions</vendor>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <resource-bundle>messages.Bundle</resource-bundle>
+
+    <actions resource-bundle="messages.Bundle">
+        <action class="com.dalsegnosolutions.ij.swrf.editor.IncrementFoldLevel" id="com.dalsegnosolutions.increaseFolding">
+            <mouse-shortcut keymap="$default" keystroke="control button143"/>
+            <add-to-group group-id="FoldingGroup"/>
+        </action>
+        <action class="com.dalsegnosolutions.ij.swrf.editor.DecreaseFoldLevel" id="com.dalsegnosolutions.decreaseFolding"
+                >
+            <mouse-shortcut keymap="$default" keystroke="control button142"/>
+            <add-to-group group-id="FoldingGroup"/>
+        </action>
+    </actions>
+
+    <!--<extensions defaultExtensionNs="com.intellij">
+        <editorFactoryMouseListener implementation="com.dalsegnosolutions.ij.swrf.editor.MMBSelectHandler"/>
+    </extensions>-->
+</idea-plugin>
