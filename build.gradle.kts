@@ -3,125 +3,129 @@ import org.jetbrains.changelog.markdownToHTML
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 
 plugins {
-    id("java")
-    alias(libs.plugins.kotlin)
-    alias(libs.plugins.intelliJPlatform)
-    alias(libs.plugins.changelog)
-    alias(libs.plugins.qodana)
-    alias(libs.plugins.kover)
+  id("java")
+  alias(libs.plugins.kotlin)
+  alias(libs.plugins.intelliJPlatform)
+  alias(libs.plugins.changelog)
+  alias(libs.plugins.qodana)
+  alias(libs.plugins.kover)
 }
 
 group = providers.gradleProperty("pluginGroup").get()
 version = providers.gradleProperty("pluginVersion").get()
 
 repositories {
-    mavenCentral()
-    intellijPlatform {
-        defaultRepositories()
-    }
+  mavenCentral()
+  intellijPlatform {
+    defaultRepositories()
+    snapshots()
+  }
 }
 
 kotlin {
-    jvmToolchain(21)
+  jvmToolchain(21)
 }
 
 dependencies {
-    testImplementation(libs.junit)
-    intellijPlatform {
-        if (!project.ext.has("localIde")
-            || (project.ext.get("localIde") as? File)
-                ?.apply { local(this) } == null
-        ) {
-            create(
-                providers.gradleProperty("platformType"),
-                providers.gradleProperty("platformVersion")
-            )
-        }
-        testFramework(TestFrameworkType.Platform)
-    }
-    testImplementation(kotlin("test"))
+  testImplementation(libs.junit)
+  intellijPlatform { // intellijIdeaUltimate("2025.2-EAP", false)
+    create(
+      providers.gradleProperty("platformType"), providers.gradleProperty("platformVersion"), false
+    )
+    testFramework(TestFrameworkType.Platform)
+  }
+  testImplementation(kotlin("test"))
 }
 
 intellijPlatform {
-    pluginConfiguration {
-        version = providers.gradleProperty("pluginVersion")
+  pluginConfiguration {
+    version = providers.gradleProperty("pluginVersion")
 
-        description = providers.fileContents(layout.projectDirectory.file("README.md")).asText.map {
-            val start = "<!-- Plugin description -->"
-            val end = "<!-- Plugin description end -->"
+    description = providers.fileContents(layout.projectDirectory.file("README.md")).asText.map {
+      val start = "<!-- Plugin description -->"
+      val end = "<!-- Plugin description end -->"
 
-            with(it.lines()) {
-                if (!containsAll(listOf(start, end))) {
-                    throw GradleException("Plugin description section not found in README.md:\n$start ... $end")
-                }
-                subList(indexOf(start) + 1, indexOf(end)).joinToString("\n").let(::markdownToHTML)
-            }
+      with(it.lines()) {
+        if (!containsAll(listOf(start, end))) {
+          throw GradleException("Plugin description section not found in README.md:\n$start ... $end")
         }
-
-        val changelog = project.changelog // local variable for configuration cache compatibility
-        changeNotes = providers.gradleProperty("pluginVersion").map { pluginVersion ->
-            with(changelog) {
-                renderItem(
-                    (getOrNull(pluginVersion) ?: getUnreleased()).withHeader(false).withEmptySections(false),
-                    Changelog.OutputType.HTML,
-                )
-            }
-        }
-
-        ideaVersion {
-            sinceBuild = providers.gradleProperty("pluginSinceBuild")
-            untilBuild = providers.gradleProperty("pluginUntilBuild")
-        }
+        subList(indexOf(start) + 1, indexOf(end)).joinToString("\n").let(::markdownToHTML)
+      }
     }
 
-    signing {
-        password = providers.environmentVariable("PRIVATE_KEY_PASSWORD").orNull
-        providers.environmentVariable("KEY_DIR").orNull?.apply {
-            val keyDir = file(this)
-            certificateChainFile = keyDir.resolve("chain.crt")
-            privateKeyFile = keyDir.resolve("private_encrypted.pem")
-        }
+    val changelog = project.changelog // local variable for configuration cache compatibility
+    changeNotes = providers.gradleProperty("pluginVersion").map { pluginVersion ->
+      with(changelog) {
+        renderItem(
+          (getOrNull(pluginVersion) ?: getUnreleased()).withHeader(false).withEmptySections(false),
+          Changelog.OutputType.HTML,
+        )
+      }
     }
 
-    publishing {
-        token = providers.environmentVariable("PUBLISH_TOKEN")
-        channels = providers.gradleProperty("pluginVersion")
-            .map { listOf(it.substringAfter('-', "").substringBefore('.').ifEmpty { "default" }) }
+    ideaVersion {
+      sinceBuild = providers.gradleProperty("pluginSinceBuild")
+      untilBuild = providers.gradleProperty("pluginUntilBuild")
     }
+  }
 
-    pluginVerification { ides { recommended() } }
+  signing {
+    password = providers.environmentVariable("PRIVATE_KEY_PASSWORD").orNull
+    providers.environmentVariable("KEY_DIR").orNull?.apply {
+      val keyDir = file(this)
+      certificateChainFile = keyDir.resolve("chain.crt")
+      privateKeyFile = keyDir.resolve("private_encrypted.pem")
+    }
+  }
+
+  publishing {
+    token = providers.environmentVariable("PUBLISH_TOKEN")
+    channels = providers.gradleProperty("pluginVersion")
+      .map { listOf(it.substringAfter('-', "").substringBefore('.').ifEmpty { "default" }) }
+  }
+
+  pluginVerification { ides { recommended() } }
 }
 
 changelog {
-    groups.empty()
-    repositoryUrl = providers.gradleProperty("pluginRepositoryUrl")
+  groups.empty()
+  repositoryUrl = providers.gradleProperty("pluginRepositoryUrl")
 }
 
 kover { reports { total { xml { onCheck = true } } } }
 
 tasks {
-    wrapper {
-        gradleVersion = providers.gradleProperty("gradleVersion").get()
-    }
+  wrapper {
+    gradleVersion = providers.gradleProperty("gradleVersion").get()
+  }
 
-    publishPlugin { dependsOn(patchChangelog) }
+  publishPlugin { dependsOn(patchChangelog) }
+
+  buildSearchableOptions { enabled = false }
+
+  runIde {
+    jvmArgumentProviders += CommandLineArgumentProvider {
+      listOf("-Didea.kotlin.plugin.use.k2=true")
+    }
+    argumentProviders.add(CommandLineArgumentProvider { setOf("D:\\Projects\\personal\\ide-plugins\\dark-theme") })
+  }
 }
 
 intellijPlatformTesting {
-    runIde {
-        register("runIdeForUiTests") {
-            task {
-                jvmArgumentProviders += CommandLineArgumentProvider {
-                    listOf(
-                        "-Drobot-server.port=8082",
-                        "-Dide.mac.message.dialogs.as.sheets=false",
-                        "-Djb.privacy.policy.text=<!--999.999-->",
-                        "-Djb.consents.confirmation.enabled=false",
-                    )
-                }
-            }
-
-            plugins { robotServerPlugin() }
+  runIde {
+    register("runIdeForUiTests") {
+      task {
+        jvmArgumentProviders += CommandLineArgumentProvider {
+          listOf(
+            "-Drobot-server.port=8082",
+            "-Dide.mac.message.dialogs.as.sheets=false",
+            "-Djb.privacy.policy.text=<!--999.999-->",
+            "-Djb.consents.confirmation.enabled=false",
+          )
         }
+      }
+
+      plugins { robotServerPlugin() }
     }
+  }
 }
